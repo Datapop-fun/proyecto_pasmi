@@ -36,18 +36,28 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
       const merged = [
         ...(res.data?.menu ?? []),
         ...(res.data?.store ?? []),
-      ] as Array<Record<string, unknown>>;
-      const mapped: Product[] = merged.map((p) => ({
-        id: String(p.id ?? p.ID ?? crypto.randomUUID()),
-        name: String(p.name ?? p.n ?? ""),
-        price: Number(p.price ?? p.p ?? 0),
-        stock: (p.stock as number | "" | null) ?? (p.s as number | "" | null) ?? "",
-        category: String(p.category ?? p.c ?? ""),
-        unit: (p.unit as Product["unit"]) ?? (p.u as Product["unit"]) ?? "und",
-        consumePerSale: Number(p.consumePerSale ?? p.k ?? 1),
-        image: (p.image as string | null) ?? (p.i as string | null) ?? null,
-        isCoffee: Boolean(p.isCoffee ?? false),
-      }));
+      ] as Array<Record<string, unknown> | Product>;
+      const mapped: Product[] = merged.map((p) => {
+        const rec = p as Record<string, unknown>;
+        return {
+          id: String(rec.id ?? (rec as any).ID ?? crypto.randomUUID()),
+          name: String(rec.name ?? (rec as any).n ?? ""),
+          price: Number(rec.price ?? (rec as any).p ?? 0),
+          stock:
+            (rec.stock as number | "" | null) ??
+            ((rec as any).s as number | "" | null) ??
+            "",
+          category: String(rec.category ?? (rec as any).c ?? ""),
+          unit:
+            (rec.unit as Product["unit"]) ??
+            ((rec as any).u as Product["unit"]) ??
+            "und",
+          consumePerSale: Number(rec.consumePerSale ?? (rec as any).k ?? 1),
+          image:
+            (rec.image as string | null) ?? ((rec as any).i as string | null) ?? null,
+          isCoffee: Boolean(rec.isCoffee ?? false),
+        };
+      });
       setProducts(mapped);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error cargando productos");
