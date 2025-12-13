@@ -1,0 +1,12 @@
+/* Layout general vertical */
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+@media (max-width: 1024px) {
+  .grid {
+    flex-direction: column;
+  }
+}

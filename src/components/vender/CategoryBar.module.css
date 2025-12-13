@@ -1,0 +1,66 @@
+.bar {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding: 0.75rem;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  scrollbar-width: none;
+  flex-shrink: 0;
+}
+
+.bar::-webkit-scrollbar {
+  display: none;
+}
+
+.cat {
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  align-items: center;
+  text-align: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  min-width: 5rem;
+  width: 5rem;
+  height: 5rem;
+  justify-content: center;
+}
+
+.cat:hover {
+  background: #f9fafb;
+}
+
+.icon {
+  color: inherit;
+}
+
+.label {
+  font-weight: 700;
+  font-size: 0.5625rem;
+  color: inherit;
+  text-transform: uppercase;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.active {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+  box-shadow: 0 4px 6px -1px rgba(163, 50, 11, 0.3);
+  transform: translateY(-2px);
+}
+
+.active .icon,
+.active .label {
+  color: white;
+}

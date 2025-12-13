@@ -1,0 +1,269 @@
+.container {
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    overflow-y: auto;
+    height: 100%;
+    background: linear-gradient(180deg, #f8f7f5 0%, #f3f4f6 100%);
+}
+
+.header {
+    margin-bottom: 0.25rem;
+}
+
+.header h1 {
+    font-size: 1.6rem;
+    font-weight: 800;
+    margin: 0.2rem 0 0;
+}
+
+.kicker {
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--color-primary);
+    font-weight: 800;
+    font-size: 11px;
+    margin: 0;
+}
+
+.subtitle {
+    color: #6b7280;
+    margin: 0.15rem 0 0.35rem;
+}
+
+.loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #6b7280;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+@media (max-width: 768px) {
+    .grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.column {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.card {
+    background: #fff;
+    border-radius: 1rem;
+    padding: 1.1rem;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.12);
+}
+
+.cardHeader {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 800;
+    color: #111827;
+    margin-bottom: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.cardHeader svg {
+    color: var(--color-primary);
+}
+
+.field {
+    margin-bottom: 0.75rem;
+}
+
+.field label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #4b5563;
+    margin-bottom: 0.3rem;
+}
+
+.field input {
+    width: 100%;
+    padding: 0.6rem 0.8rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.65rem;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.field input:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(163, 50, 11, 0.15);
+}
+
+.inputRow {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.inputRow input {
+    flex: 1;
+}
+
+.expenseRow {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.expenseRow input:first-child {
+    flex: 2;
+}
+
+.expenseValue {
+    flex: 1;
+    max-width: 100px;
+}
+
+.divider {
+    height: 1px;
+    background: #e5e7eb;
+    margin: 1rem 0;
+}
+
+.expenseList {
+    margin-top: 0.5rem;
+}
+
+.expenseList label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #374151;
+}
+
+.noExpenses {
+    color: #9ca3af;
+    font-size: 0.75rem;
+    font-style: italic;
+    margin: 0.5rem 0 0;
+}
+
+.primaryBtn {
+    background: var(--color-primary);
+    color: white;
+    border: none;
+    padding: 0.6rem 1rem;
+    border-radius: 0.65rem;
+    font-weight: 800;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    white-space: nowrap;
+    box-shadow: 0 10px 20px -10px rgba(163, 50, 11, 0.45);
+}
+
+.primaryBtn:hover {
+    opacity: 0.9;
+}
+
+.expenseBtn {
+    width: 100%;
+    background: white;
+    color: var(--color-primary);
+    border: 2px solid var(--color-primary);
+    padding: 0.65rem 1rem;
+    border-radius: 0.65rem;
+    font-weight: 800;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.expenseBtn:hover {
+    background: #fef3f0;
+}
+
+.metaRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(90deg, #fef3f0 0%, #fff7ed 100%);
+    padding: 0.85rem;
+    border-radius: 0.65rem;
+    margin-bottom: 0.75rem;
+}
+
+.metaRow span {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-primary);
+}
+
+.metaValue {
+    font-size: 1.125rem;
+    color: var(--color-primary);
+}
+
+.coffeeStock {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f3f4f6;
+    padding: 0.85rem;
+    border-radius: 0.65rem;
+    margin-bottom: 0.75rem;
+}
+
+.coffeeStock span {
+    font-size: 0.875rem;
+    color: #6b7280;
+}
+
+.coffeeStock strong {
+    font-size: 1.25rem;
+    color: #16a34a;
+}
+
+.coffeeRow {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.coffeeRow input {
+    flex: 1;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    outline: none;
+}
+
+.logoutBtn {
+    width: 100%;
+    max-width: 400px;
+    margin: 1rem auto 0;
+    background: #fef2f2;
+    color: #ef4444;
+    font-weight: 800;
+    border: 1px solid #fecaca;
+    padding: 1rem;
+    border-radius: 0.9rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+}
+
+.logoutBtn:hover {
+    background: #fee2e2;
+    transform: translateY(-1px);
+}

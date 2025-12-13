@@ -1,0 +1,9 @@
+.empty {
+  border: 1px dashed #e5e7eb;
+  border-radius: var(--radius-md);
+  padding: 16px;
+  text-align: center;
+  color: var(--color-muted);
+  background: #fafafa;
+  font-weight: 700;
+}
