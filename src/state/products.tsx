@@ -36,8 +36,8 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
       const merged = [
         ...(res.data?.menu ?? []),
         ...(res.data?.store ?? []),
-      ];
-      const mapped: Product[] = merged.map((p: Record<string, unknown>) => ({
+      ] as Array<Record<string, unknown>>;
+      const mapped: Product[] = merged.map((p) => ({
         id: String(p.id ?? p.ID ?? crypto.randomUUID()),
         name: String(p.name ?? p.n ?? ""),
         price: Number(p.price ?? p.p ?? 0),
