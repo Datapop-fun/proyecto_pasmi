@@ -1,39 +1,41 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PASMI POS Next
 
-## Getting Started
+Reescritura del POS PASMI en Next.js (App Router) con React + TypeScript, estado centralizado y CSS Modules, tomando como referencia el prototipo de `index.html`.
 
-First, run the development server:
+## Stack
+- Next.js 16 (App Router) + React 19 + TypeScript.
+- CSS Modules (tokens en `app/globals.css`).
+- Icons: `lucide-react`. Gráficas: `chart.js` + `react-chartjs-2`. Confetti: `canvas-confetti`.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Estructura
+- `src/app/(pos)/`: rutas protegidas `vender`, `inventario`, `informes`, `ajustes`.
+- `src/components/`: UI reusable (nav, grid, carrito, modal pago, inventario CRUD, informes).
+- `src/state/`: contextos para auth local, productos, carrito, pedidos, ajustes y toasts.
+- `src/lib/`: tipos, constantes y cliente API hacia Apps Script/Cloudinary.
+
+## Variables de entorno
+Copiar `.env.example` a `.env.local` y completar:
+```
+NEXT_PUBLIC_API_URL=
+NEXT_PUBLIC_CLOUDINARY_URL=
+NEXT_PUBLIC_CLOUDINARY_PRESET=
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Scripts
+- `npm run dev` — entorno local.
+- `npm run lint` — linting.
+- `npm run build` — build de producción.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Flujo de autenticación
+Login local (credenciales prototipo: `PASMI` / `PASMI`) con persistencia en `localStorage`. La ruta raíz muestra el panel de login y luego redirige a `/vender`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Estado del proyecto
+- Vender: categorías, grid de productos, carrito, modal de pago con cálculo de vueltas y registro de ventas/pedidos pendientes.
+- Inventario: formulario y lista CRUD con subida opcional a Cloudinary.
+- Informes: dashboard con métricas, top productos, tendencias y donut de pagos.
+- Ajustes: base, egresos, metas y stock de café con UI renovada.
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-# proyecto_pasmi
-# proyecto_pasmi
-# proyecto_pasmi
+## Desarrollo
+1) Instala dependencias: `npm install`
+2) Define variables en `.env.local`
+3) Corre `npm run dev` y abre `http://localhost:3000`
