@@ -208,12 +208,10 @@ export default function InformesPage() {
         ]);
 
         // --- INSIGHTS / MISIÓN ---
-        const rawSmartGoal =
-          insRes?.data?.smartGoal ??
-          (insRes as any)?.smartGoal ??
-          null;
-        const rawGoal = insRes?.data?.goal ?? (insRes as any)?.goal;
-        const rawMeta = insRes?.data?.meta ?? (insRes as any)?.meta;
+        const insightsData = ((insRes as any)?.data ?? insRes ?? {}) as any;
+        const rawSmartGoal = insightsData.smartGoal ?? null;
+        const rawGoal = insightsData.goal;
+        const rawMeta = insightsData.meta;
         // Backfill meta desde reports (suma del día)
         let reportsTotalForDay = 0;
         try {
@@ -230,17 +228,24 @@ export default function InformesPage() {
         }
 
         if (finRes?.data) {
+          const expensesValue = Array.isArray(finRes.data.expenses)
+            ? finRes.data.expenses.reduce(
+                (sum: number, e: any) => sum + (Number(e.value ?? e) || 0),
+                0,
+              )
+            : finRes.data.expenses ?? 0;
+
           setFinancials({
             todayTotal: finRes.data.todayTotal ?? 0,
             base: finRes.data.base ?? 0,
-            expenses: finRes.data.expenses ?? 0,
+            expenses: expensesValue,
             totalInBox:
               finRes.data.totalInBox ??
               (finRes.data.cash ?? 0) +
                 (finRes.data.nequi ?? 0) +
                 (finRes.data.davi ?? 0) +
                 (finRes.data.base ?? 0) -
-                (finRes.data.expenses ?? 0),
+                expensesValue,
             payments: {
               cash: finRes.data.cash ?? 0,
               nequi: finRes.data.nequi ?? 0,

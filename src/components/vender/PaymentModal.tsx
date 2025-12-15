@@ -259,7 +259,7 @@ export function PaymentModal({ open, onClose, settlingOrder }: Props) {
               const score = nonZero * 100 - sumDiff;
               return { cash, nequi, davi, score };
             })
-            .sort((a, b) => b.score - a.score);
+            .sort((a: { score: number }, b: { score: number }) => b.score - a.score);
 
           const best = scored[0];
           if (best) {
