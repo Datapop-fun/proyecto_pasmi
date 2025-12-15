@@ -53,8 +53,94 @@ export async function getActiveOrders() {
   const res = await fetchJson<ApiResult<any[]>>(url);
 
   if (res.data) {
-    res.data = res.data.map((order) => ({
-      ...order,
+    res.data = res.data.map((order) => {
+      const rawPayment = (order as any).payment;
+      let parsedPayment: any = undefined;
+
+      if (typeof rawPayment === "string") {
+        try {
+          parsedPayment = JSON.parse(rawPayment);
+        } catch {
+          parsedPayment = rawPayment ? { method: rawPayment } : undefined;
+        }
+      } else if (rawPayment && typeof rawPayment === "object") {
+        parsedPayment = rawPayment;
+      }
+
+      const asNumber = (value: any) => {
+        const n = Number(value);
+        return Number.isFinite(n) ? n : undefined;
+      };
+
+      // Acumular montos por método desde distintos formatos
+      let cash = asNumber(
+        order.cash ??
+          (parsedPayment as any)?.cash ??
+          (order as any).efectivo ??
+          (order as any).p_efectivo,
+      );
+      let nequi = asNumber(
+        order.nequi ??
+          (parsedPayment as any)?.nequi ??
+          (order as any).p_nequi,
+      );
+      let davi = asNumber(
+        order.davi ??
+          (parsedPayment as any)?.daviplata ??
+          (parsedPayment as any)?.davi ??
+          (order as any).daviplata ??
+          (order as any).p_daviplata,
+      );
+
+      // Si viene como arreglo [{method,value}]
+      if (Array.isArray(parsedPayment)) {
+        for (const p of parsedPayment) {
+          const val = asNumber((p as any).value ?? (p as any).monto);
+          const method = String((p as any).method ?? (p as any).medio ?? "").toLowerCase();
+          if (!Number.isFinite(val)) continue;
+          if (method.includes("nequi")) nequi = (nequi ?? 0) + (val as number);
+          else if (method.includes("davi")) davi = (davi ?? 0) + (val as number);
+          else cash = (cash ?? 0) + (val as number);
+        }
+      }
+
+      // Si viene como objeto con totales
+      if (parsedPayment && typeof parsedPayment === "object" && !Array.isArray(parsedPayment)) {
+        const valCash = asNumber((parsedPayment as any).cash);
+        const valNequi = asNumber((parsedPayment as any).nequi);
+        const valDavi = asNumber((parsedPayment as any).daviplata ?? (parsedPayment as any).davi);
+        cash = valCash ?? cash;
+        nequi = valNequi ?? nequi;
+        davi = valDavi ?? davi;
+      }
+
+      const hasData =
+        Number.isFinite(cash) ||
+        Number.isFinite(nequi) ||
+        Number.isFinite(davi);
+
+      const payment = hasData
+        ? {
+            cash: Number.isFinite(cash) ? (cash as number) : 0,
+            nequi: Number.isFinite(nequi) ? (nequi as number) : 0,
+            daviplata: Number.isFinite(davi) ? (davi as number) : 0,
+          }
+        : undefined;
+
+      const paymentMethod =
+        (order as any).paymentMethod ||
+        (order as any).payMethod ||
+        (order as any).method ||
+        (order as any).metodo ||
+        (order as any).medio ||
+        (typeof parsedPayment === "object"
+          ? (parsedPayment as any)?.method ?? (parsedPayment as any)?.medio
+          : undefined);
+
+      return {
+        ...order,
+        payment,
+        paymentMethod,
       statusPayment:
         order.payStatus === true
           ? "Pagado"
@@ -67,12 +153,35 @@ export async function getActiveOrders() {
           : order.delStatus === false
           ? "Pendiente"
           : order.statusDelivery || order.deliveryStatus || "Pendiente",
-      createdAt: order.time
-        ? `${new Date().toISOString().split("T")[0]}T${order.time}${
-            order.time.length === 5 ? ":00" : ""
-          }`
-        : order.createdAt || new Date().toISOString(),
-    }));
+      createdAt: (() => {
+        const timeStr = typeof order.time === "string" ? order.time : "";
+        const idTimestamp = Number(String(order.id ?? "").split("-").pop());
+        const idDate = Number.isFinite(idTimestamp) ? new Date(idTimestamp) : null;
+        const dateStrFromId = idDate
+          ? idDate.toISOString().split("T")[0]
+          : null;
+
+        const dateStr =
+          typeof order.date === "string"
+            ? order.date
+            : typeof (order as any).fecha === "string"
+            ? (order as any).fecha
+            : dateStrFromId ?? new Date().toISOString().split("T")[0];
+
+        if (order.createdAt) return order.createdAt;
+
+        if (dateStr && timeStr) {
+          return `${dateStr}T${timeStr}${timeStr.length === 5 ? ":00" : ""}`;
+        }
+
+        if (dateStr) {
+          return `${dateStr}T00:00:00`;
+        }
+
+        return idDate ? idDate.toISOString() : new Date().toISOString();
+      })(),
+      };
+    });
   }
 
   return res as ApiResult<Order[]>;
@@ -90,20 +199,21 @@ export async function getInsights(date?: string) {
   return fetchJson<ApiResult<{ goal: number; meta: number }>>(url);
 }
 
+type DailyFinancialsResponse = {
+  base?: number;
+  expenses?: number | any[];
+  totalInBox?: number;
+  todayTotal?: number;
+  cash?: number;
+  nequi?: number;
+  davi?: number;
+  coffeeStock?: number;
+};
+
 export async function getDailyFinancials(date?: string) {
-  const query = date ? `&date=${date}` : '';
+  const query = date ? `&date=${date}` : "";
   const url = `${getApiUrl()}?action=getDailyFinancials${query}`;
-  return fetchJson<
-    ApiResult<{
-      base: number;
-      expenses: number;
-      totalInBox: number;
-      todayTotal: number;
-      cash: number;
-      nequi: number;
-      davi: number;
-    }>
-  >(url);
+  return fetchJson<ApiResult<DailyFinancialsResponse>>(url);
 }
 
 export async function recordSale(payload: {
@@ -199,5 +309,3 @@ export async function updateOrderStatus(payload: {
 }) {
   return postAction<unknown>("updateOrderStatus", payload);
 }
-
-

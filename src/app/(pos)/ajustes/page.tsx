@@ -4,7 +4,14 @@ import { useState, useEffect } from "react";
 import { LogOut, Coffee, Settings as SettingsIcon, DollarSign, Target, Building } from "lucide-react";
 import styles from "./ajustes.module.css";
 import { useUi } from "@/state/ui";
-import { addExpense, setBase, updateCoffeeStock, getSettings, updateSettings } from "@/lib/api";
+import {
+  addExpense,
+  setBase,
+  updateCoffeeStock,
+  getSettings,
+  updateSettings,
+  getDailyFinancials,
+} from "@/lib/api";
 import { useAuth } from "@/state/auth";
 
 export default function AjustesPage() {
@@ -26,13 +33,31 @@ export default function AjustesPage() {
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const data = await getSettings();
-        setBusinessName(data.name || "");
-        setBusinessNit(data.nit || "");
-        setManualGoal(data.customGoal || 0);
-        setSmartGoal(data.smartGoal || 40318);
-        setCoffeeStock(data.coffeeStock || 0);
-        setBaseVal(data.base || 0);
+        type SettingsData = Awaited<ReturnType<typeof getSettings>>;
+
+        const [settingsData, financials] = await Promise.all([
+          getSettings().catch(() => ({})),
+          getDailyFinancials().catch(() => null),
+        ]);
+
+        const settings = (settingsData || {}) as SettingsData;
+        const financialData =
+          financials && "data" in financials ? (financials as any).data : financials;
+
+        setBusinessName(settings.name || "");
+        setBusinessNit(settings.nit || "");
+        setManualGoal(settings.customGoal || 0);
+        setSmartGoal(settings.smartGoal || 40318);
+
+        const baseFromSheet = financialData?.base;
+        setBaseVal(
+          typeof baseFromSheet === "number" ? baseFromSheet : settings.base || 0,
+        );
+
+        const coffeeFromSheet = financialData?.coffeeStock;
+        setCoffeeStock(
+          typeof coffeeFromSheet === "number" ? coffeeFromSheet : settings.coffeeStock || 0,
+        );
       } catch {
         // Usar valores por defecto
       } finally {
@@ -206,15 +231,19 @@ export default function AjustesPage() {
               <strong className={styles.metaValue}>${smartGoal.toLocaleString()}</strong>
             </div>
 
-            <div className={styles.field}>
-              <label>Meta Manual</label>
-              <input
-                type="number"
-                value={manualGoal || ""}
-                onChange={(e) => setManualGoal(Number(e.target.value) || 0)}
-                placeholder="0 = Usar Inteligente"
-              />
-            </div>
+          <div className={styles.field}>
+            <label>Meta Manual</label>
+            <input
+              type="number"
+              value={manualGoal || ""}
+              onChange={(e) => setManualGoal(Number(e.target.value) || 0)}
+              placeholder="0 = Usar Inteligente"
+            />
+          </div>
+
+            <button className={styles.primaryBtn} onClick={handleSaveSettings}>
+              Guardar Metas
+            </button>
           </div>
 
           {/* Bolsa de Café */}

@@ -20,7 +20,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
 
   const refresh = async () => {
     try {
-      // setIsLoading(true); // Opcional
+      setIsLoading(true);
       const res = await getActiveOrders();
       if (res.data) {
         setOrders(res.data);

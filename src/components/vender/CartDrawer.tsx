@@ -16,6 +16,32 @@ export function CartDrawer() {
   const { orders, isLoading, refresh } = useOrders();
   const { openPaymentModal } = useUi();
 
+  const sortedOrders = useMemo(() => {
+    const getTimestamp = (order: import("@/lib/types").Order) => {
+      // 1) Prefer createdAt full timestamp
+      if (order.createdAt) {
+        const t = Date.parse(order.createdAt);
+        if (!Number.isNaN(t)) return t;
+      }
+
+      // 2) Combine date + time if exist separately
+      const dateStr = (order as any).date || (order as any).fecha;
+      const timeStr = (order as any).time;
+      if (dateStr && timeStr) {
+        const composed = `${dateStr}T${timeStr}${timeStr.length === 5 ? ":00" : ""}`;
+        const t = Date.parse(composed);
+        if (!Number.isNaN(t)) return t;
+      }
+
+      // 3) Fallback to timestamp embedded in id (e.g., ORD-<ms>)
+      const idNum = Number(String(order.id).split("-").pop());
+      if (!Number.isNaN(idNum)) return idNum;
+
+      return 0;
+    };
+
+    return [...orders].sort((a, b) => getTimestamp(b) - getTimestamp(a));
+  }, [orders]);
 
   return (
     <aside className={styles.drawer}>
@@ -65,7 +91,12 @@ export function CartDrawer() {
             <ListOrdered size={16} />
             <span>PEDIDOS RECIENTES</span>
           </div>
-          <button onClick={() => refresh()} className={styles.refreshBtn} title="Actualizar">
+          <button
+            onClick={() => void refresh()}
+            className={styles.refreshBtn}
+            title="Actualizar"
+            disabled={isLoading}
+          >
             ↻
           </button>
         </div>
@@ -75,7 +106,7 @@ export function CartDrawer() {
           ) : orders.length === 0 ? (
             <p className={styles.ordersEmpty}>Sin pedidos recientes</p>
           ) : (
-            orders.slice().reverse().map((order) => <OrderCard key={order.id} order={order} />)
+            sortedOrders.map((order) => <OrderCard key={order.id} order={order} />)
           )}
         </div>
       </div>
@@ -162,11 +193,7 @@ function OrderCard({ order }: { order: import("@/lib/types").Order }) {
             className={`${styles.statusBtn} ${payClass}`}
             onClick={(e) => {
               e.stopPropagation();
-              if (order.statusPayment === "Pagado") {
-                toggleStatus(order.id, "payment", false);
-              } else {
-                openPaymentModal(order);
-              }
+              openPaymentModal(order);
             }}
           >
             {order.statusPayment || "Pendiente"}

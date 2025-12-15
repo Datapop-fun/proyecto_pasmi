@@ -46,6 +46,7 @@ export interface Order {
   statusDelivery: "Pendiente" | "Entregado" | "Cancelado" | string;
   payment?: PaymentBreakdown;
   createdAt?: string;
+  paymentMethod?: string;
 }
 
 export interface Settings {

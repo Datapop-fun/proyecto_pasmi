@@ -207,9 +207,27 @@ export default function InformesPage() {
           getReports(apiDate),
         ]);
 
-        if (insRes?.data) setInsights(insRes.data);
-        else if (insRes && "goal" in insRes) setInsights(insRes as any);
-        else setInsights(null);
+        // --- INSIGHTS / MISIÓN ---
+        const rawSmartGoal =
+          insRes?.data?.smartGoal ??
+          (insRes as any)?.smartGoal ??
+          null;
+        const rawGoal = insRes?.data?.goal ?? (insRes as any)?.goal;
+        const rawMeta = insRes?.data?.meta ?? (insRes as any)?.meta;
+        // Backfill meta desde reports (suma del día)
+        let reportsTotalForDay = 0;
+        try {
+          const selected = Array.isArray(repRes?.data)
+            ? repRes.data
+            : Array.isArray(repRes)
+            ? repRes
+            : [];
+          reportsTotalForDay = selected
+            .filter((r) => normalizeDate(r.date) === apiDate)
+            .reduce((sum, r) => sum + (Number(r.total) || 0), 0);
+        } catch {
+          reportsTotalForDay = 0;
+        }
 
         if (finRes?.data) {
           setFinancials({
@@ -232,6 +250,23 @@ export default function InformesPage() {
         } else if (finRes && "todayTotal" in finRes) {
           setFinancials(finRes as any);
         } else setFinancials(null);
+
+        // Calcular misión del día
+        const todayTotalVal =
+          finRes?.data?.todayTotal ??
+          (finRes as any)?.todayTotal ??
+          reportsTotalForDay ??
+          0;
+        if (rawGoal !== undefined && rawMeta !== undefined) {
+          setInsights({ goal: rawGoal, meta: rawMeta } as any);
+        } else if (rawSmartGoal) {
+          const percent = rawSmartGoal
+            ? Math.round((todayTotalVal / rawSmartGoal) * 100)
+            : 0;
+          setInsights({ goal: percent, meta: rawSmartGoal });
+        } else {
+          setInsights(null);
+        }
 
         const menu = prodRes?.data?.menu || [];
         const store = prodRes?.data?.store || [];
