@@ -12,6 +12,7 @@ import {
   Legend,
   Filler,
   ArcElement,
+  BarElement,
 } from "chart.js";
 
 // Registrar componentes globalmente (safe en top level client module)
@@ -24,7 +25,8 @@ ChartJS.register(
   Tooltip,
   Legend,
   Filler,
-  ArcElement
+  ArcElement,
+  BarElement
 );
 
 // Dynamic imports para evitar SSR error con Canvas
@@ -35,6 +37,9 @@ const Doughnut = dynamic(
   () => import("react-chartjs-2").then((mod) => mod.Doughnut),
   { ssr: false }
 );
+const Bar = dynamic(() => import("react-chartjs-2").then((mod) => mod.Bar), {
+  ssr: false,
+});
 
 type WeeklyTrendProps = {
   labels: string[];
@@ -57,7 +62,12 @@ export function WeeklyTrendChart({ labels, data }: WeeklyTrendProps) {
     scales: {
       x: {
         grid: { display: false },
-        ticks: { font: { size: 10 } },
+        ticks: {
+          font: { size: 10 },
+          callback: function (_: any, idx: number) {
+            return labels[idx] ?? "";
+          },
+        },
       },
       y: {
         border: { display: false },
@@ -83,8 +93,8 @@ export function WeeklyTrendChart({ labels, data }: WeeklyTrendProps) {
         borderColor: "#c2410c", // Naranja quemado del tema
         backgroundColor: "rgba(234, 88, 12, 0.1)", // Naranja transparente
         tension: 0.4, // Curva suave
-        pointRadius: 0,
-        pointHoverRadius: 4,
+        pointRadius: 3,
+        pointHoverRadius: 5,
       },
     ],
   };
@@ -132,4 +142,48 @@ export function PaymentDonutChart({ cash, nequi, davi }: PaymentDonutProps) {
   };
 
   return <Doughnut data={data} options={options} />;
+}
+
+type HourlyBarProps = {
+  labels: string[];
+  data: number[];
+};
+
+export function HourlyBarChart({ labels, data }: HourlyBarProps) {
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: (ctx: any) => `${ctx.raw} ventas`,
+        },
+      },
+    },
+    scales: {
+      x: {
+        grid: { display: false },
+        ticks: { font: { size: 10 } },
+      },
+      y: {
+        beginAtZero: true,
+        grid: { color: "#f1f5f9" },
+        ticks: { stepSize: 1, font: { size: 10 } },
+      },
+    },
+  };
+
+  const chartData = {
+    labels,
+    datasets: [
+      {
+        data,
+        backgroundColor: "rgba(163, 50, 11, 0.7)",
+        borderRadius: 6,
+      },
+    ],
+  };
+
+  return <Bar options={options} data={chartData} />;
 }

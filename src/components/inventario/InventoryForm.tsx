@@ -185,7 +185,25 @@ export function InventoryForm({ onSaved, editing }: Props) {
 
 
 
-          {/* Fila 2: Precio, Stock */}
+          {/* Fila 2: Categoria */}
+          <div className={styles.row}>
+            <div className={styles.groupFull}>
+              <label className={styles.labelField}>Categoria</label>
+              <select
+                className={styles.selectField}
+                value={form.category}
+                onChange={(e) => handleChange("category", e.target.value)}
+              >
+                {categories.map((cat) => (
+                  <option key={cat.key} value={cat.key}>
+                    {cat.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Fila 3: Precio, Stock */}
           <div className={styles.row}>
             <div className={styles.group}>
               <label className={styles.labelField}>Precio</label>
@@ -222,7 +240,7 @@ export function InventoryForm({ onSaved, editing }: Props) {
 
           </div>
 
-          {/* Fila 3: Unidad, Consumo */}
+          {/* Fila 4: Unidad, Consumo */}
           <div className={styles.row}>
             <div className={styles.group}>
               <label className={styles.labelField}>Unidad de Medida</label>

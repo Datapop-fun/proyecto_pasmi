@@ -24,16 +24,34 @@
   gap: 0.25rem;
   align-items: center;
   text-align: center;
-  transition: all 0.2s ease;
+  transition: all 0.12s ease;
   flex-shrink: 0;
   min-width: 5rem;
   width: 5rem;
   height: 5rem;
   justify-content: center;
+  user-select: none;
 }
 
 .cat:hover {
   background: #f9fafb;
+}
+
+.cat:active,
+.cat:focus-visible {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+  box-shadow: 0 6px 14px -10px rgba(163, 50, 11, 0.4);
+  transform: translateY(-2px);
+  outline: none;
+}
+
+.cat:active .icon,
+.cat:active .label,
+.cat:focus-visible .icon,
+.cat:focus-visible .label {
+  color: #fff;
 }
 
 .icon {
@@ -54,10 +72,14 @@
 
 .active {
   background: var(--color-primary);
-  color: white;
+  color: #fff;
   border-color: var(--color-primary);
-  box-shadow: 0 4px 6px -1px rgba(163, 50, 11, 0.3);
+  box-shadow: 0 6px 14px -10px rgba(163, 50, 11, 0.4);
   transform: translateY(-2px);
+}
+
+.active:hover {
+  background: var(--color-primary);
 }
 
 .active .icon,

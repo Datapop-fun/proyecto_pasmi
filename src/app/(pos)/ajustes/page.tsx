@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { LogOut, Coffee, Settings as SettingsIcon, DollarSign, Target, Building } from "lucide-react";
 import styles from "./ajustes.module.css";
 import { useUi } from "@/state/ui";
@@ -19,7 +19,7 @@ export default function AjustesPage() {
   const { logout } = useAuth();
   
   // Estados
-  const [baseVal, setBaseVal] = useState(0);
+  const [baseVal, setBaseVal] = useState("0");
   const [expDesc, setExpDesc] = useState("");
   const [expVal, setExpVal] = useState(0);
   const [coffee, setCoffee] = useState(0);
@@ -28,7 +28,66 @@ export default function AjustesPage() {
   const [businessNit, setBusinessNit] = useState("");
   const [manualGoal, setManualGoal] = useState(0);
   const [smartGoal, setSmartGoal] = useState(0);
+  const [expenses, setExpenses] = useState<Array<{ desc: string; val: number }>>([]);
   const [loading, setLoading] = useState(true);
+
+  const applyFinancials = useCallback(
+    (financialData: any, fallbackBase?: number, fallbackCoffee?: number) => {
+      if (!financialData) {
+        if (typeof fallbackBase === "number") setBaseVal(String(fallbackBase));
+        if (typeof fallbackCoffee === "number") setCoffeeStock(fallbackCoffee);
+        setExpenses([]);
+        return;
+      }
+
+      const expensesData = (financialData as any).expenses;
+      const parsedExpenses =
+        Array.isArray(expensesData)
+          ? expensesData
+              .map((e: any) => ({
+                desc:
+                  typeof e?.desc === "string"
+                    ? e.desc
+                    : String(e?.desc ?? "Egreso"),
+                val: Number(e?.val ?? e?.value ?? 0),
+              }))
+              .filter((e: any) => Number.isFinite(e.val))
+          : typeof expensesData === "number"
+          ? [{ desc: "Total del dia", val: expensesData }]
+          : [];
+      setExpenses(parsedExpenses);
+
+      const baseFromSheet = financialData?.base;
+      const baseValue =
+        typeof baseFromSheet === "number"
+          ? baseFromSheet
+          : typeof fallbackBase === "number"
+          ? fallbackBase
+          : Number(baseVal) || 0;
+      setBaseVal(String(baseValue));
+
+      const coffeeFromSheet = financialData?.coffeeStock;
+      if (typeof coffeeFromSheet === "number") {
+        setCoffeeStock(coffeeFromSheet);
+      } else if (typeof fallbackCoffee === "number") {
+        setCoffeeStock(fallbackCoffee);
+      }
+    },
+    [baseVal],
+  );
+
+  const refreshFinancials = useCallback(
+    async (fallbackBase?: number, fallbackCoffee?: number) => {
+      try {
+        const res = await getDailyFinancials();
+        const financialData = res && "data" in res ? (res as any).data : res;
+        applyFinancials(financialData, fallbackBase, fallbackCoffee);
+      } catch {
+        // Silenciar error en refresco
+      }
+    },
+    [applyFinancials],
+  );
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -44,20 +103,11 @@ export default function AjustesPage() {
         const financialData =
           financials && "data" in financials ? (financials as any).data : financials;
 
+        applyFinancials(financialData, settings.base, settings.coffeeStock);
         setBusinessName(settings.name || "");
         setBusinessNit(settings.nit || "");
         setManualGoal(settings.customGoal || 0);
         setSmartGoal(settings.smartGoal || 40318);
-
-        const baseFromSheet = financialData?.base;
-        setBaseVal(
-          typeof baseFromSheet === "number" ? baseFromSheet : settings.base || 0,
-        );
-
-        const coffeeFromSheet = financialData?.coffeeStock;
-        setCoffeeStock(
-          typeof coffeeFromSheet === "number" ? coffeeFromSheet : settings.coffeeStock || 0,
-        );
       } catch {
         // Usar valores por defecto
       } finally {
@@ -75,7 +125,12 @@ export default function AjustesPage() {
 
   const handleBase = async () => {
     try {
-      await setBase({ value: baseVal });
+      const parsedBase = Number(baseVal);
+      if (!Number.isFinite(parsedBase)) {
+        showToast("Ingresa un valor válido");
+        return;
+      }
+      await setBase({ value: parsedBase });
       showToast("Base guardada");
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Error guardando base");
@@ -92,6 +147,7 @@ export default function AjustesPage() {
       showToast("Egreso guardado");
       setExpDesc("");
       setExpVal(0);
+      await refreshFinancials();
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Error guardando egreso");
     }
@@ -150,7 +206,7 @@ export default function AjustesPage() {
                 <input
                   type="number"
                   value={baseVal}
-                  onChange={(e) => setBaseVal(Number(e.target.value) || 0)}
+                  onChange={(e) => setBaseVal(e.target.value)}
                   placeholder="0"
                 />
                 <button className={styles.primaryBtn} onClick={handleBase}>
@@ -186,7 +242,20 @@ export default function AjustesPage() {
 
             <div className={styles.expenseList}>
               <label>Egresos de Hoy</label>
-              <p className={styles.noExpenses}>Sin egresos hoy</p>
+              {expenses.length === 0 ? (
+                <p className={styles.noExpenses}>Sin egresos hoy</p>
+              ) : (
+                <ul className={styles.expenseItems}>
+                  {expenses.map((e, idx) => (
+                    <li key={`${e.desc}-${idx}`} className={styles.expenseItem}>
+                      <span>{e.desc}</span>
+                      <span className={styles.expenseItemValue}>
+                        ${e.val.toLocaleString()}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         </div>

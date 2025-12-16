@@ -80,6 +80,7 @@
   text-decoration: none;
   transition: all 0.15s ease;
   width: 100%;
+  color: #9ca3af;
 }
 
 @media (min-width: 768px) {
@@ -88,7 +89,7 @@
   }
 
   .link:hover {
-    background: #f9fafb;
+    background: #f4ede6;
   }
 }
 
@@ -103,12 +104,13 @@
   }
 }
 
-.active {
-  color: var(--color-primary);
+.link svg {
+  color: currentColor;
 }
 
-@media (min-width: 768px) {
-  .active {
-    background: #f9fafb;
-  }
+.active,
+.link:active {
+  background: #3e2b26;
+  color: #ffffff;
+  box-shadow: 0 10px 18px -12px rgba(62, 43, 38, 0.5);
 }

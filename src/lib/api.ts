@@ -196,7 +196,15 @@ export async function getReports(date?: string) {
 export async function getInsights(date?: string) {
   const query = date ? `&date=${date}` : '';
   const url = `${getApiUrl()}?action=getInsights${query}`;
-  return fetchJson<ApiResult<{ goal: number; meta: number }>>(url);
+  return fetchJson<
+    ApiResult<{
+      goal?: number;
+      meta?: number;
+      smartGoal?: number;
+      combos?: Array<{ combo: string; count: number }>;
+      hourly?: Array<{ hour: string; value?: number; sales?: number; total?: number }>;
+    }>
+  >(url);
 }
 
 type DailyFinancialsResponse = {
