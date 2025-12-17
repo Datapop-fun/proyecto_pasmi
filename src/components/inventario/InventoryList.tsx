@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { Pencil, Trash2 } from "lucide-react";
 import styles from "./InventoryList.module.css";
 import { useProducts } from "@/state/products";
@@ -56,19 +55,27 @@ export function InventoryList({ onEdit }: Props) {
       <div className={styles.list}>
         {products.map((p) => {
           const stockInfo = formatStock(p);
-          const imgSrc = p.image || `https://placehold.co/50x50/A3320B/FFFFFF?text=${p.name.substring(0, 2)}`;
+          const rawImage =
+            p.image ??
+            (p as any).img ??
+            (p as any).i ??
+            (p as any).imgUrl ??
+            (p as any).img_url ??
+            (p as any).imageUrl ??
+            (p as any).image_url;
+          const imgSrc = rawImage || `https://placehold.co/50x50/A3320B/FFFFFF?text=${p.name.substring(0, 2)}`;
           const consume = p.consumePerSale ?? 1;
           
           return (
             <div key={p.id} className={styles.row}>
               <div className={styles.productInfo}>
-                <Image
+                <img
                   src={imgSrc}
                   alt={p.name}
+                  className={styles.productImage}
                   width={40}
                   height={40}
-                  className={styles.productImage}
-                  unoptimized
+                  loading="lazy"
                 />
                 <div className={styles.productDetails}>
                   <p className={styles.name}>{p.name}</p>

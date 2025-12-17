@@ -17,7 +17,7 @@ const getApiUrl = () => {
 
 export const cloudinaryConfig = {
   url: process.env.NEXT_PUBLIC_CLOUDINARY_URL ?? "",
-  preset: process.env.NEXT_PUBLIC_CLOUDINARY_PRESET ?? "",
+  preset: process.env.NEXT_PUBLIC_CLOUDINARY_PRESET ?? "pasmi_preset",
 };
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -264,11 +264,18 @@ export async function addProduct(payload: {
   qty: StockValue;
   cat: string;
   img?: string | null;
+  // Guardamos en la hoja tanto img como i para ser compatibles con el prototipo
+  i?: string | null;
   unit: Product["unit"];
   consume: number;
   isCoffee?: boolean;
 }) {
-  return postAction<unknown>("addProduct", payload);
+  const body = {
+    ...payload,
+    img: payload.img ?? payload.i ?? null,
+    i: payload.img ?? payload.i ?? null,
+  };
+  return postAction<unknown>("addProduct", body);
 }
 
 export async function updateProduct(payload: {
@@ -278,11 +285,17 @@ export async function updateProduct(payload: {
   qty: StockValue;
   cat: string;
   img?: string | null;
+  i?: string | null;
   unit: Product["unit"];
   consume: number;
   isCoffee?: boolean;
 }) {
-  return postAction<unknown>("updateProduct", payload);
+  const body = {
+    ...payload,
+    img: payload.img ?? payload.i ?? null,
+    i: payload.img ?? payload.i ?? null,
+  };
+  return postAction<unknown>("updateProduct", body);
 }
 
 export async function deleteProduct(payload: { id: string }) {

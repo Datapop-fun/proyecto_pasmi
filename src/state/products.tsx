@@ -19,6 +19,7 @@ type ProductsContextValue = {
   error?: string;
   refresh: () => Promise<void>;
   applySale: (items: CartItem[]) => void;
+  upsertLocal: (product: Product) => void;
 };
 
 const ProductsContext = createContext<ProductsContextValue | null>(null);
@@ -54,7 +55,14 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
             "und",
           consumePerSale: Number(rec.consumePerSale ?? (rec as any).k ?? 1),
           image:
-            (rec.image as string | null) ?? ((rec as any).i as string | null) ?? null,
+            (rec.image as string | null) ??
+            ((rec as any).i as string | null) ??
+            ((rec as any).img as string | null) ??
+            ((rec as any).imgUrl as string | null) ??
+            ((rec as any).img_url as string | null) ??
+            ((rec as any).imageUrl as string | null) ??
+            ((rec as any).image_url as string | null) ??
+            null,
           isCoffee: Boolean(rec.isCoffee ?? false),
         };
       });
@@ -83,6 +91,18 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
     );
   }, []);
 
+  const upsertLocal = useCallback((product: Product) => {
+    setProducts((prev) => {
+      const idx = prev.findIndex((p) => p.id === product.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = product;
+        return next;
+      }
+      return [product, ...prev];
+    });
+  }, []);
+
   const value = useMemo(
     () => ({
       categories: CATEGORY_CATALOG,
@@ -91,8 +111,9 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
       error,
       refresh,
       applySale,
+      upsertLocal,
     }),
-    [products, loading, error, refresh, applySale],
+    [products, loading, error, refresh, applySale, upsertLocal],
   );
 
   return (

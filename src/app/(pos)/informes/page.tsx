@@ -319,7 +319,15 @@ export default function InformesPage() {
           category: String(p.category ?? p.c ?? ""),
           unit: (p.unit as Product["unit"]) ?? (p.u as Product["unit"]) ?? "und",
           consumePerSale: Number(p.consumePerSale ?? p.k ?? 1),
-          image: (p.image as string | null) ?? (p.i as string | null) ?? null,
+          image:
+            (p.image as string | null) ??
+            (p.i as string | null) ??
+            (p.img as string | null) ??
+            (p.imgUrl as string | null) ??
+            (p.img_url as string | null) ??
+            (p.imageUrl as string | null) ??
+            (p.image_url as string | null) ??
+            null,
           isCoffee: Boolean(p.isCoffee ?? false),
         }));
         setStockAlerts(normalizedAlerts);

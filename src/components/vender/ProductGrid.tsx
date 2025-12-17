@@ -79,7 +79,17 @@ export function ProductGrid({ category }: Props) {
       {filtered.map((product) => {
         const badge = getStockBadge(product.stock, product.unit);
         const cartQty = getCartQty(product.id);
-        const imgSrc = product.image || `https://placehold.co/150x150/A3320B/FFFFFF?text=${product.name.substring(0, 3)}`;
+        const rawImage =
+          product.image ??
+          (product as any).img ??
+          (product as any).i ??
+          (product as any).imgUrl ??
+          (product as any).img_url ??
+          (product as any).imageUrl ??
+          (product as any).image_url;
+        const imgSrc =
+          rawImage ||
+          `https://placehold.co/150x150/A3320B/FFFFFF?text=${product.name.substring(0, 3)}`;
         
         return (
           <article 

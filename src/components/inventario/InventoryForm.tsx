@@ -36,13 +36,28 @@ const emptyForm: FormState = {
 
 async function uploadToCloudinary(file?: File | null) {
   if (!file) return null;
-  if (!cloudinaryConfig.url || !cloudinaryConfig.preset) return null;
+  if (!cloudinaryConfig.url || !cloudinaryConfig.preset) {
+    throw new Error("Falta configurar Cloudinary (url o preset)");
+  }
   const formData = new FormData();
   formData.append("file", file);
   formData.append("upload_preset", cloudinaryConfig.preset);
   const res = await fetch(cloudinaryConfig.url, { method: "POST", body: formData });
   const data = await res.json();
-  return data.secure_url as string | null;
+  if (!res.ok) {
+    const message =
+      (data as any)?.error?.message ??
+      (data as any)?.message ??
+      "No se pudo subir la imagen";
+    if (typeof message === "string" && message.toLowerCase().includes("preset")) {
+      throw new Error("Cloudinary: upload_preset no encontrado. Verifica NEXT_PUBLIC_CLOUDINARY_PRESET.");
+    }
+    throw new Error(message);
+  }
+  if (!data.secure_url) {
+    throw new Error("Cloudinary no devolvio una URL valida");
+  }
+  return data.secure_url as string;
 }
 
 type Props = {
@@ -51,7 +66,7 @@ type Props = {
 };
 
 export function InventoryForm({ onSaved, editing }: Props) {
-  const { categories, refresh } = useProducts();
+  const { categories, refresh, upsertLocal } = useProducts();
   const { showToast } = useUi();
   const [form, setForm] = useState<FormState>(() => ({
     ...emptyForm,
@@ -119,18 +134,33 @@ export function InventoryForm({ onSaved, editing }: Props) {
       let imageUrl = form.imageUrl;
       if (form.imageFile) {
         imageUrl = await uploadToCloudinary(form.imageFile);
+        // Guardamos la URL subida para que quede en el estado y la vista
+        setForm((prev) => ({ ...prev, imageUrl }));
       }
+      const productId = form.id ?? crypto.randomUUID();
+      const localProduct: Product = {
+        id: productId,
+        name: form.name,
+        price: Number(form.price),
+        stock: qty,
+        category: form.category,
+        unit: form.unit,
+        consumePerSale: Number(form.consume || 1),
+        image: imageUrl ?? null,
+        isCoffee: form.isCoffee,
+      };
       if (isEdit && form.id) {
-        await updateProduct({ ...payload, img: imageUrl, id: form.id });
+        await updateProduct({ ...payload, img: imageUrl, i: imageUrl, id: form.id });
         showToast("Inventario actualizado");
       } else {
-        await addProduct({ ...payload, img: imageUrl });
+        await addProduct({ ...payload, img: imageUrl, i: imageUrl });
         showToast("Guardado en Inventario");
       }
+      upsertLocal(localProduct);
+      await refresh();
       setForm({ ...emptyForm, category: categories[0]?.key ?? "" });
       setPreview(null);
       onSaved?.();
-      void refresh();
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Error guardando");
     } finally {
