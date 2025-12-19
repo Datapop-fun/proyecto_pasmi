@@ -20,6 +20,13 @@ export const cloudinaryConfig = {
   preset: process.env.NEXT_PUBLIC_CLOUDINARY_PRESET ?? "pasmi_preset",
 };
 
+const getLocalYmd = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { cache: "no-store", ...init });
   if (!res.ok) {
@@ -243,12 +250,14 @@ export async function settleOrder(payload: {
   return postAction<unknown>("settleOrder", payload);
 }
 
-export async function addExpense(payload: { desc: string; value: number }) {
-  return postAction<unknown>("addExpense", payload);
+export async function addExpense(payload: { desc: string; value: number; date?: string }) {
+  const date = payload.date ?? getLocalYmd();
+  return postAction<unknown>("addExpense", { ...payload, date });
 }
 
-export async function setBase(payload: { value: number }) {
-  return postAction<unknown>("setBase", payload);
+export async function setBase(payload: { value: number; date?: string }) {
+  const date = payload.date ?? getLocalYmd();
+  return postAction<unknown>("setBase", { ...payload, date });
 }
 
 export async function updateCoffeeStock(payload: {

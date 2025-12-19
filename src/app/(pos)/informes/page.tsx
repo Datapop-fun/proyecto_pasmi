@@ -11,6 +11,55 @@ import type { HourlyPoint, PaymentBreakdown, Product, ReportsPayload } from "@/l
 
 const formatMoney = (val: number) => `$${Math.round(val).toLocaleString("es-CO")}`;
 
+const pickNumber = (...values: Array<unknown>) => {
+  for (const v of values) {
+    if (v === null || v === undefined) continue;
+    if (typeof v === "string" && v.trim() === "") continue;
+    const n = Number(v);
+    if (Number.isFinite(n)) return n;
+  }
+  return undefined;
+};
+
+function normalizeFinancials(finData: any) {
+  if (!finData) return null;
+  const expensesRaw =
+    finData.expenses ??
+    finData.egresos ??
+    finData.expense ??
+    finData.egresos_hoy ??
+    finData.gastos;
+  const expensesValue = Array.isArray(expensesRaw)
+    ? expensesRaw.reduce((sum: number, e: any) => sum + (Number(e?.val ?? e?.value ?? e) || 0), 0)
+    : Number(expensesRaw) || 0;
+
+  const baseVal = pickNumber(
+    finData.base,
+    finData.baseTotal,
+    finData.base_total,
+    finData.cashBase,
+    finData.cajaBase,
+  );
+
+  const cash = pickNumber(finData.cash, finData.efectivo, finData.p_efectivo) ?? 0;
+  const nequi = pickNumber(finData.nequi, finData.p_nequi) ?? 0;
+  const davi = pickNumber(finData.davi, finData.daviplata, finData.p_daviplata) ?? 0;
+
+  return {
+    todayTotal: Number(finData.todayTotal) || 0,
+    base: Number.isFinite(baseVal as number) ? (baseVal as number) : 0,
+    expenses: expensesValue,
+    totalInBox:
+      finData.totalInBox ??
+      cash + nequi + davi + (Number.isFinite(baseVal as number) ? (baseVal as number) : 0) - expensesValue,
+    payments: {
+      cash,
+      nequi,
+      daviplata: davi,
+    },
+  };
+}
+
 // --- WIDGETS ---
 
 function SummaryCard({ title, value, sub, type, icon: Icon }: any) {
@@ -104,7 +153,14 @@ function TopProductsList({ products }: { products: { name: string; qty: number }
 function StockAlertsList({ products }: { products: Product[] }) {
   const critical = (products || [])
     .filter((p) => {
-      const stock = Number((p as any).stock ?? (p as any).s);
+      // Excluir productos basados en café (usan inventario compartido de café)
+      if (p.isCoffee) return false;
+      
+      // Solo incluir productos que tienen cantidad rastreada (no vacío/null)
+      const rawStock = (p as any).stock ?? (p as any).s;
+      if (rawStock === "" || rawStock === null || rawStock === undefined) return false;
+      
+      const stock = Number(rawStock);
       return !Number.isNaN(stock) && stock <= 5;
     })
     .slice(0, 5);
@@ -175,414 +231,441 @@ function HourlyChartCard({ data }: { data: HourlyPoint[] }) {
 
 // --- PAGE ---
 
-export default function InformesPage() {
-  const [loading, setLoading] = useState(true);
-  const [insights, setInsights] = useState<{ goal: number; meta: number } | null>(null);
-  const [financials, setFinancials] = useState<ReportsPayload["summary"] & { payments?: PaymentBreakdown } | null>(null);
-  const [stockAlerts, setStockAlerts] = useState<Product[]>([]);
-  const [reports, setReports] = useState<any[]>([]);
-  const [hourly, setHourly] = useState<HourlyPoint[]>([]);
-  const [combos, setCombos] = useState<Array<{ combo: string; count: number }>>([]);
-  const [topProducts, setTopProducts] = useState<any[]>([]);
-  const [weeklyTrend, setWeeklyTrend] = useState<{ labels: string[]; data: number[] }>({ labels: [], data: [] });
-  const [currentDate, setCurrentDate] = useState(new Date());
-
-  const toLocalYmd = (date: Date) => {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, "0");
-    const d = String(date.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
-  };
-
-  const getApiDate = (date: Date) => toLocalYmd(date);
-
-  const handlePrevDay = () => {
-    const d = new Date(currentDate);
-    d.setDate(d.getDate() - 1);
-    setCurrentDate(d);
-  };
-
-  const handleNextDay = () => {
-    const d = new Date(currentDate);
-    d.setDate(d.getDate() + 1);
-    setCurrentDate(d);
-  };
-
-  const handleDateSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.value) {
-      const [y, m, d] = e.target.value.split("-").map(Number);
-      setCurrentDate(new Date(y, m - 1, d));
-    }
-  };
-
-  const normalizeDate = (value?: string | Date) => {
-    if (!value) return "";
-    if (typeof value === "string") {
-      const trimmed = value.trim();
-      if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
-        return trimmed.slice(0, 10);
+  // --- PAGE ---
+  
+  export default function InformesPage() {
+    const [loading, setLoading] = useState(true);
+    const [insights, setInsights] = useState<{ goal: number; meta: number } | null>(null);
+    const [financials, setFinancials] = useState<ReportsPayload["summary"] & { payments?: PaymentBreakdown } | null>(null);
+    const [stockAlerts, setStockAlerts] = useState<Product[]>([]);
+    const [reports, setReports] = useState<any[]>([]);
+    const [hourly, setHourly] = useState<HourlyPoint[]>([]);
+    const [combos, setCombos] = useState<Array<{ combo: string; count: number }>>([]);
+    const [topProducts, setTopProducts] = useState<any[]>([]);
+    const [weeklyTrend, setWeeklyTrend] = useState<{ labels: string[]; data: number[] }>({ labels: [], data: [] });
+    const [currentDate, setCurrentDate] = useState(new Date());
+  
+    // Manual overrides for static backend data
+    const [manualBase, setManualBase] = useState<string | null>(null);
+    const [isEditingBase, setIsEditingBase] = useState(false);
+  
+    const toLocalYmd = (date: Date) => {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const d = String(date.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    };
+  
+    const getApiDate = (date: Date) => toLocalYmd(date);
+  
+    const handlePrevDay = () => {
+      const d = new Date(currentDate);
+      d.setDate(d.getDate() - 1);
+      setCurrentDate(d);
+      setManualBase(null); // Reset manual override on date change
+    };
+  
+    const handleNextDay = () => {
+      const d = new Date(currentDate);
+      d.setDate(d.getDate() + 1);
+      setCurrentDate(d);
+      setManualBase(null); // Reset manual override
+    };
+  
+    const handleDateSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.value) {
+        const [y, m, d] = e.target.value.split("-").map(Number);
+        setCurrentDate(new Date(y, m - 1, d));
+        setManualBase(null); // Reset manual override
       }
-      if (trimmed.includes("T")) {
-        return trimmed.split("T")[0];
+    };
+  
+    const normalizeDate = (value?: string | Date) => {
+      if (!value) return "";
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+          return trimmed.slice(0, 10);
+        }
+        if (trimmed.includes("T")) {
+          return trimmed.split("T")[0];
+        }
+        if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(trimmed)) {
+          const [a, b, c] = trimmed.split("/");
+          const year = c.length === 2 ? `20${c}` : c.padStart(4, "0");
+          const month = a.padStart(2, "0");
+          const day = b.padStart(2, "0");
+          return `${year}-${month}-${day}`;
+        }
       }
-      if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(trimmed)) {
-        const [a, b, c] = trimmed.split("/");
-        const year = c.length === 2 ? `20${c}` : c.padStart(4, "0");
-        const month = a.padStart(2, "0");
-        const day = b.padStart(2, "0");
-        return `${year}-${month}-${day}`;
-      }
-    }
-    try {
-      const d = new Date(value as any);
-      return toLocalYmd(d);
-    } catch {
-      return String(value).slice(0, 10);
-    }
-  };
-
-  const getRecordDate = (record: any) =>
-    normalizeDate(record?.date ?? record?.createdAt ?? record?.fecha ?? record?.time ?? record?.created_at);
-
-  useEffect(() => {
-    async function loadData() {
-      setLoading(true);
-      const apiDate = getApiDate(currentDate);
       try {
-        const [insRes, finRes, prodRes, repRes] = await Promise.all([
-          getInsights(apiDate),
-          getDailyFinancials(apiDate),
-          getProducts(),
-          getReports(apiDate),
-        ]);
-
-        const insightsData = ((insRes as any)?.data ?? insRes ?? {}) as any;
-        const parsedHourly: HourlyPoint[] = Array.isArray(insightsData.hourly)
-          ? insightsData.hourly
-              .map((h: any) => ({
-                hour: String(h.hour ?? h.label ?? h.time ?? ""),
-                value: Number(h.sales ?? h.value ?? h.total ?? 0),
-              }))
-              .filter((h: HourlyPoint) => h.hour)
-          : [];
-        setHourly(parsedHourly);
-        const parsedCombos = Array.isArray(insightsData.combos)
-          ? insightsData.combos
-              .map((c: any) => ({
-                combo: String(c.combo ?? c.name ?? c.label ?? "Combo"),
-                count: Number(c.count ?? c.total ?? 0),
-              }))
-              .filter((c: any) => Number.isFinite(c.count))
-          : [];
-        setCombos(parsedCombos);
-
-        const rawGoal = insightsData.goal;
-        const rawMeta = insightsData.meta;
-        const rawSmartGoal = insightsData.smartGoal ?? null;
-
-        if (finRes?.data) {
-          const expensesValue = Array.isArray(finRes.data.expenses)
-            ? finRes.data.expenses.reduce((sum: number, e: any) => sum + (Number(e.val ?? e.value ?? e) || 0), 0)
-            : finRes.data.expenses ?? 0;
-
-          setFinancials({
-            todayTotal: finRes.data.todayTotal ?? 0,
-            base: finRes.data.base ?? 0,
-            expenses: expensesValue,
-            totalInBox:
-              finRes.data.totalInBox ??
-              (finRes.data.cash ?? 0) +
-                (finRes.data.nequi ?? 0) +
-                (finRes.data.davi ?? 0) +
-                (finRes.data.base ?? 0) -
-                expensesValue,
-            payments: {
-              cash: finRes.data.cash ?? 0,
-              nequi: finRes.data.nequi ?? 0,
-              daviplata: finRes.data.davi ?? 0,
-            },
-          });
-        } else if (finRes && "todayTotal" in finRes) {
-          setFinancials(finRes as any);
-        } else {
-          setFinancials(null);
-        }
-
-        const menu = prodRes?.data?.menu || [];
-        const store = prodRes?.data?.store || [];
-        const mergedProducts = [...(Array.isArray(menu) ? menu : []), ...(Array.isArray(store) ? store : [])];
-        const normalizedAlerts: Product[] = mergedProducts.map((p: any) => ({
-          id: String(p.id ?? p.ID ?? crypto.randomUUID()),
-          name: String(p.name ?? p.n ?? ""),
-          price: Number(p.price ?? p.p ?? 0),
-          stock: (p.stock as number | "" | null) ?? (p.s as number | "" | null) ?? "",
-          category: String(p.category ?? p.c ?? ""),
-          unit: (p.unit as Product["unit"]) ?? (p.u as Product["unit"]) ?? "und",
-          consumePerSale: Number(p.consumePerSale ?? p.k ?? 1),
-          image:
-            (p.image as string | null) ??
-            (p.i as string | null) ??
-            (p.img as string | null) ??
-            (p.imgUrl as string | null) ??
-            (p.img_url as string | null) ??
-            (p.imageUrl as string | null) ??
-            (p.image_url as string | null) ??
-            null,
-          isCoffee: Boolean(p.isCoffee ?? false),
-        }));
-        setStockAlerts(normalizedAlerts);
-
-        const rawReports = Array.isArray(repRes) ? repRes : repRes?.data && Array.isArray(repRes.data) ? repRes.data : [];
-        setReports(rawReports);
-
-        // insights / meta
-        let reportsTotalForDay = 0;
+        const d = new Date(value as any);
+        return toLocalYmd(d);
+      } catch {
+        return String(value).slice(0, 10);
+      }
+    };
+  
+    const getRecordDate = (record: any) =>
+      normalizeDate(record?.date ?? record?.createdAt ?? record?.fecha ?? record?.time ?? record?.created_at);
+  
+    useEffect(() => {
+      async function loadData() {
+        setLoading(true);
+        setFinancials(null);
+        const apiDate = getApiDate(currentDate);
         try {
-          reportsTotalForDay = rawReports
-            .filter((r) => getRecordDate(r) === apiDate)
-            .reduce((sum, r) => sum + (Number(r.total) || 0), 0);
-        } catch {
-          reportsTotalForDay = 0;
-        }
-
-        const todayTotalVal = finRes?.data?.todayTotal ?? (finRes as any)?.todayTotal ?? reportsTotalForDay ?? 0;
-        if (rawGoal !== undefined && rawMeta !== undefined) {
-          setInsights({ goal: rawGoal, meta: rawMeta } as any);
-        } else if (rawSmartGoal) {
-          const percent = rawSmartGoal ? Math.round((todayTotalVal / rawSmartGoal) * 100) : 0;
-          setInsights({ goal: percent, meta: rawSmartGoal });
-        } else {
-          setInsights(null);
-        }
-
-        processReports(rawReports, apiDate, todayTotalVal);
-      } catch (e) {
-        console.error("Error loading dashboard data", e);
-        setHourly([]);
-        setCombos([]);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadData();
-  }, [currentDate]);
-
-  useEffect(() => {
-    const todayStr = getApiDate(new Date());
-    if (insights?.goal && insights.goal >= 100 && getApiDate(currentDate) === todayStr) {
-      confetti({ particleCount: 90, spread: 65, origin: { y: 0.7 } });
-    }
-  }, [insights, currentDate]);
-
-  function processReports(rawReports: any[], dateStr: string, todayOverride?: number) {
-    try {
-      const productMap: Record<string, number> = {};
-      const selected = rawReports.filter((r) => getRecordDate(r) === dateStr);
-      selected.forEach((r) => {
-        const itemsRaw = r.items;
-        const items =
-          typeof itemsRaw === "string"
-            ? (() => {
-                try {
-                  const parsed = JSON.parse(itemsRaw);
-                  return Array.isArray(parsed) ? parsed : [];
-                } catch {
-                  return [];
-                }
-              })()
-            : Array.isArray(itemsRaw)
-            ? itemsRaw
+          const [insRes, finRes, prodRes, repRes] = await Promise.all([
+            getInsights(apiDate),
+            getDailyFinancials(apiDate),
+            getProducts(),
+            getReports(apiDate),
+          ]);
+  
+          const insightsData = ((insRes as any)?.data ?? insRes ?? {}) as any;
+          const parsedHourly: HourlyPoint[] = Array.isArray(insightsData.hourly)
+            ? insightsData.hourly
+                .map((h: any) => ({
+                  hour: String(h.hour ?? h.label ?? h.time ?? ""),
+                  value: Number(h.sales ?? h.value ?? h.total ?? 0),
+                }))
+                .filter((h: HourlyPoint) => h.hour)
             : [];
-
-        items.forEach((p: any) => {
-          const name = p.nombre ?? p.name;
-          if (name) {
-            productMap[name] = (productMap[name] || 0) + (Number(p.cantidad ?? p.qty) || 0);
+          setHourly(parsedHourly);
+          const parsedCombos = Array.isArray(insightsData.combos)
+            ? insightsData.combos
+                .map((c: any) => ({
+                  combo: String(c.combo ?? c.name ?? c.label ?? "Combo"),
+                  count: Number(c.count ?? c.total ?? 0),
+                }))
+                .filter((c: any) => Number.isFinite(c.count))
+            : [];
+          setCombos(parsedCombos);
+  
+          const rawGoal = insightsData.goal;
+          const rawMeta = insightsData.meta;
+          const rawSmartGoal = insightsData.smartGoal ?? null;
+  
+          const finDataRaw = finRes?.data ?? (finRes && "todayTotal" in (finRes as any) ? finRes : null);
+          setFinancials(normalizeFinancials(finDataRaw));
+  
+          const menu = prodRes?.data?.menu || [];
+          const store = prodRes?.data?.store || [];
+          const mergedProducts = [...(Array.isArray(menu) ? menu : []), ...(Array.isArray(store) ? store : [])];
+          const normalizedAlerts: Product[] = mergedProducts.map((p: any) => ({
+            id: String(p.id ?? p.ID ?? crypto.randomUUID()),
+            name: String(p.name ?? p.n ?? ""),
+            price: Number(p.price ?? p.p ?? 0),
+            stock: (p.stock as number | "" | null) ?? (p.s as number | "" | null) ?? "",
+            category: String(p.category ?? p.c ?? ""),
+            unit: (p.unit as Product["unit"]) ?? (p.u as Product["unit"]) ?? "und",
+            consumePerSale: Number(p.consumePerSale ?? p.k ?? 1),
+            image:
+              (p.image as string | null) ??
+              (p.i as string | null) ??
+              (p.img as string | null) ??
+              (p.imgUrl as string | null) ??
+              (p.img_url as string | null) ??
+              (p.imageUrl as string | null) ??
+              (p.image_url as string | null) ??
+              null,
+            isCoffee: Boolean(p.isCoffee ?? false),
+          }));
+          setStockAlerts(normalizedAlerts);
+  
+          const rawReports = Array.isArray(repRes) ? repRes : repRes?.data && Array.isArray(repRes.data) ? repRes.data : [];
+          setReports(rawReports);
+  
+          // insights / meta
+          let reportsTotalForDay = 0;
+          try {
+            reportsTotalForDay = rawReports
+              .filter((r) => getRecordDate(r) === apiDate)
+              .reduce((sum, r) => sum + (Number(r.total) || 0), 0);
+          } catch {
+            reportsTotalForDay = 0;
           }
+  
+          const todayTotalVal = finRes?.data?.todayTotal ?? (finRes as any)?.todayTotal ?? reportsTotalForDay ?? 0;
+          if (rawGoal !== undefined && rawMeta !== undefined) {
+            setInsights({ goal: rawGoal, meta: rawMeta } as any);
+          } else if (rawSmartGoal) {
+            const percent = rawSmartGoal ? Math.round((todayTotalVal / rawSmartGoal) * 100) : 0;
+            setInsights({ goal: percent, meta: rawSmartGoal });
+          } else {
+            setInsights(null);
+          }
+  
+          processReports(rawReports, apiDate, todayTotalVal);
+        } catch (e) {
+          console.error("Error loading dashboard data", e);
+          setHourly([]);
+          setCombos([]);
+          setFinancials(null);
+        } finally {
+          setLoading(false);
+        }
+      }
+      loadData();
+    }, [currentDate]);
+  
+    useEffect(() => {
+      const todayStr = getApiDate(new Date());
+      if (insights?.goal && insights.goal >= 100 && getApiDate(currentDate) === todayStr) {
+        confetti({ particleCount: 90, spread: 65, origin: { y: 0.7 } });
+      }
+    }, [insights, currentDate]);
+  
+    function processReports(rawReports: any[], dateStr: string, todayOverride?: number) {
+      try {
+        const productMap: Record<string, number> = {};
+        const selected = rawReports.filter((r) => getRecordDate(r) === dateStr);
+        selected.forEach((r) => {
+          const itemsRaw = r.items;
+          const items =
+            typeof itemsRaw === "string"
+              ? (() => {
+                  try {
+                    const parsed = JSON.parse(itemsRaw);
+                    return Array.isArray(parsed) ? parsed : [];
+                  } catch {
+                    return [];
+                  }
+                })()
+              : Array.isArray(itemsRaw)
+              ? itemsRaw
+              : [];
+  
+          items.forEach((p: any) => {
+            const name = p.nombre ?? p.name;
+            if (name) {
+              productMap[name] = (productMap[name] || 0) + (Number(p.cantidad ?? p.qty) || 0);
+            }
+          });
         });
-      });
-      const sorted = Object.entries(productMap)
-        .map(([name, qty]) => ({ name, qty }))
-        .sort((a, b) => b.qty - a.qty)
-        .slice(0, 5);
-      setTopProducts(sorted);
-
-      const current = new Date(dateStr);
-      const dayIdx = (current.getDay() + 6) % 7; // lunes = 0
-      const start = new Date(current);
-      start.setDate(current.getDate() - dayIdx);
-
-      const weekDates: string[] = [];
-      for (let i = 0; i < 7; i++) {
-        const d = new Date(start);
-        d.setDate(start.getDate() + i);
-        weekDates.push(toLocalYmd(d));
+        const sorted = Object.entries(productMap)
+          .map(([name, qty]) => ({ name, qty }))
+          .sort((a, b) => b.qty - a.qty)
+          .slice(0, 5);
+        setTopProducts(sorted);
+  
+        const current = new Date(dateStr);
+        const dayIdx = (current.getDay() + 6) % 7; // lunes = 0
+        const start = new Date(current);
+        start.setDate(current.getDate() - dayIdx);
+  
+        const weekDates: string[] = [];
+        for (let i = 0; i < 7; i++) {
+          const d = new Date(start);
+          d.setDate(start.getDate() + i);
+          weekDates.push(toLocalYmd(d));
+        }
+  
+        const weekSet = new Set(weekDates);
+        const totalsByDay = rawReports.reduce<Record<string, number>>((acc, r) => {
+          const key = getRecordDate(r);
+          if (!key || !weekSet.has(key)) return acc;
+          const val = Number(r.total ?? r.amount ?? 0);
+          acc[key] = (acc[key] ?? 0) + (Number.isFinite(val) ? val : 0);
+          return acc;
+        }, {});
+  
+        if (Number.isFinite(todayOverride) && (todayOverride as number) > 0) {
+          totalsByDay[dateStr] = Number(todayOverride);
+        }
+  
+        const labels = weekDates.map((d) => d.slice(5)); // mm-dd sin reparsear fechas
+        const data = weekDates.map((d) => totalsByDay[d] ?? 0);
+  
+        setWeeklyTrend({ labels, data });
+      } catch (e) {
+        console.warn("Error processing reports analytics", e);
       }
-
-      const weekSet = new Set(weekDates);
-      const totalsByDay = rawReports.reduce<Record<string, number>>((acc, r) => {
-        const key = getRecordDate(r);
-        if (!key || !weekSet.has(key)) return acc;
-        const val = Number(r.total ?? r.amount ?? 0);
-        acc[key] = (acc[key] ?? 0) + (Number.isFinite(val) ? val : 0);
-        return acc;
-      }, {});
-
-      if (Number.isFinite(todayOverride) && (todayOverride as number) > 0) {
-        totalsByDay[dateStr] = Number(todayOverride);
-      }
-
-      const labels = weekDates.map((d) => d.slice(5)); // mm-dd sin reparsear fechas
-      const data = weekDates.map((d) => totalsByDay[d] ?? 0);
-
-      setWeeklyTrend({ labels, data });
-    } catch (e) {
-      console.warn("Error processing reports analytics", e);
     }
-  }
-
-  const base = financials?.base || 0;
-  const expenses = financials?.expenses || 0;
-  const targetDate = getApiDate(currentDate);
-  const selectedReports = reports.filter((r) => getRecordDate(r) === targetDate);
-  const derivedPayments = selectedReports.reduce(
-    (acc, r) => ({
-      cash: acc.cash + (Number(r.cash ?? r.efectivo ?? 0) || 0),
-      nequi: acc.nequi + (Number(r.nequi ?? 0) || 0),
-      davi: acc.davi + (Number(r.davi ?? r.daviplata ?? 0) || 0),
-    }),
-    { cash: 0, nequi: 0, davi: 0 },
-  );
-  const derivedTotal = selectedReports.reduce((acc, r) => acc + (Number(r.total) || 0), 0);
-  const hasSelectedReports = selectedReports.length > 0;
-
-  const todayTotal = hasSelectedReports ? derivedTotal : financials?.todayTotal ?? derivedTotal;
-  const totalBox = todayTotal + base - expenses;
-  const paymentsForChart = {
-    cash: hasSelectedReports
-      ? derivedPayments.cash
-      : financials?.payments?.cash ?? (financials as any)?.cash ?? derivedPayments.cash,
-    nequi: hasSelectedReports
-      ? derivedPayments.nequi
-      : financials?.payments?.nequi ?? (financials as any)?.nequi ?? derivedPayments.nequi,
-    davi: hasSelectedReports
-      ? derivedPayments.davi
-      : financials?.payments?.daviplata ?? (financials as any)?.davi ?? derivedPayments.davi,
-  };
-
-  useEffect(() => {
-    const override = todayTotal && todayTotal > 0 ? todayTotal : undefined;
-    processReports(reports, getApiDate(currentDate), override);
-  }, [reports, currentDate, todayTotal]);
-
-  if (loading) return <div className="p-8 text-center text-gray-500">Cargando dashboard...</div>;
-
-  return (
-    <div className={styles.container}>
-      <header className={styles.header}>
-        <h1 className={styles.title}>Dashboard</h1>
-
-        <div className={styles.dateSelector}>
-          <button className={styles.dateBtn} onClick={handlePrevDay}>
-            <ChevronLeft size={16} />
-          </button>
-          <div className="flex items-center gap-2 px-2 relative">
-            <Calendar size={14} className="text-gray-400" />
-            <span className="capitalize">{currentDate.toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })}</span>
-            <input
-              type="date"
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-              value={getApiDate(currentDate)}
-              onChange={handleDateSelect}
+  
+    // USE MANUAL BASE IF SET, OTHERWISE FROM BACKEND
+    const base = manualBase !== null ? Number(manualBase) : (financials?.base || 0);
+    
+    // We assume backend expenses are correct for today, but for history they might be missing.
+    // Since user refuses backend changes, we cannot fix expenses history easily. 
+    // We focus on Base which is the main complaint.
+    const expenses = financials?.expenses || 0;
+  
+    const targetDate = getApiDate(currentDate);
+    const selectedReports = reports.filter((r) => getRecordDate(r) === targetDate);
+    
+    const derivedPayments = selectedReports.reduce(
+      (acc, r) => ({
+        cash: acc.cash + (Number(r.cash ?? r.efectivo ?? 0) || 0),
+        nequi: acc.nequi + (Number(r.nequi ?? 0) || 0),
+        davi: acc.davi + (Number(r.davi ?? r.daviplata ?? 0) || 0),
+      }),
+      { cash: 0, nequi: 0, davi: 0 },
+    );
+    const derivedTotal = selectedReports.reduce((acc, r) => acc + (Number(r.total) || 0), 0);
+    const hasSelectedReports = selectedReports.length > 0;
+  
+    const todayTotal = hasSelectedReports ? derivedTotal : financials?.todayTotal ?? derivedTotal;
+    
+    // Total in Box Calculation
+    const totalCollected = hasSelectedReports
+      ? derivedPayments.cash + derivedPayments.nequi + derivedPayments.davi
+      : (Number(financials?.payments?.cash ?? 0) + Number(financials?.payments?.nequi ?? 0) + Number(financials?.payments?.daviplata ?? 0)) ||
+        (Number((financials as any)?.cash ?? 0) + Number((financials as any)?.nequi ?? 0) + Number((financials as any)?.davi ?? 0));
+  
+    const totalBox = totalCollected + base - expenses;
+    
+    const paymentsForChart = {
+      cash: hasSelectedReports
+        ? derivedPayments.cash
+        : financials?.payments?.cash ?? (financials as any)?.cash ?? derivedPayments.cash,
+      nequi: hasSelectedReports
+        ? derivedPayments.nequi
+        : financials?.payments?.nequi ?? (financials as any)?.nequi ?? derivedPayments.nequi,
+      davi: hasSelectedReports
+        ? derivedPayments.davi
+        : financials?.payments?.daviplata ?? (financials as any)?.davi ?? derivedPayments.davi,
+    };
+  
+    useEffect(() => {
+      const override = todayTotal && todayTotal > 0 ? todayTotal : undefined;
+      processReports(reports, getApiDate(currentDate), override);
+    }, [reports, currentDate, todayTotal]);
+  
+    if (loading) return <div className="p-8 text-center text-gray-500">Cargando dashboard...</div>;
+  
+    return (
+      <div className={styles.container}>
+        <header className={styles.header}>
+          <h1 className={styles.title}>Dashboard</h1>
+  
+          <div className={styles.dateSelector}>
+            <button className={styles.dateBtn} onClick={handlePrevDay}>
+              <ChevronLeft size={16} />
+            </button>
+            <div className="flex items-center gap-2 px-2 relative">
+              <Calendar size={14} className="text-gray-400" />
+              <span className="capitalize">{currentDate.toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })}</span>
+              <input
+                type="date"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                value={getApiDate(currentDate)}
+                onChange={handleDateSelect}
+              />
+            </div>
+            <button className={styles.dateBtn} onClick={handleNextDay}>
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </header>
+  
+        <div className={styles.grid}>
+          <div className={styles.rowSummary}>
+            
+            {/* EDITABLE BASE CARD */}
+            <div className={clsx(styles.cardMetric, styles.cardBlue)} onClick={() => setIsEditingBase(true)}>
+               <div className={clsx(styles.metricTitle, styles.blueText)}>
+                 <Wallet size={16} />
+                 Caja Base {isEditingBase ? "(Editar)" : ""}
+               </div>
+               
+               {isEditingBase ? (
+                 <input 
+                   autoFocus
+                   type="number"
+                   className="w-full bg-transparent border-b border-blue-300 text-2xl font-bold outline-none"
+                   value={manualBase ?? base}
+                   onChange={(e) => setManualBase(e.target.value)}
+                   onBlur={() => setIsEditingBase(false)}
+                   onKeyDown={(e) => e.key === 'Enter' && setIsEditingBase(false)}
+                 />
+               ) : (
+                 <div className={styles.metricValue}>
+                    {base === 0 ? "$0" : formatMoney(base)}
+                 </div>
+               )}
+               {/* Show indicator if modified */}
+               {manualBase !== null && <div className={styles.metricSub}>* Editado manual</div>}
+            </div>
+  
+            <SummaryCard title="Egresos Hoy" value={expenses} type="red" icon={TrendingDown} />
+            <SummaryCard
+              title="Total en Caja"
+              value={totalBox}
+              sub="(Ventas + Base - Egresos)"
+              type="green"
+              icon={Calculator}
             />
           </div>
-          <button className={styles.dateBtn} onClick={handleNextDay}>
-            <ChevronRight size={16} />
-          </button>
-        </div>
-      </header>
-
-      <div className={styles.grid}>
-        <div className={styles.rowSummary}>
-          <SummaryCard title="Caja Base" value={base} type="blue" icon={Wallet} />
-          <SummaryCard title="Egresos Hoy" value={expenses} type="red" icon={TrendingDown} />
-          <SummaryCard
-            title="Total en Caja"
-            value={totalBox}
-            sub="(Ventas + Base - Egresos)"
-            type="green"
-            icon={Calculator}
-          />
-        </div>
-
-        <div className={styles.areaMission}>
-          {insights ? (
-            <MissionBar percent={insights.goal} meta={insights.meta} />
-          ) : (
-            <div className={clsx(styles.missionBar, "opacity-50 flex items-center justify-center")}>
-              Calculando mision...
-            </div>
-          )}
-        </div>
-
-        <div className={styles.columns}>
-          <div className={styles.colMain}>
-            <div className={styles.rowSales}>
-              <SalesTodayCard value={todayTotal} />
-              <div className={styles.donutCard}>
-                <div className={styles.donutContainer}>
-                  <PaymentDonutChart
-                    cash={paymentsForChart.cash}
-                    nequi={paymentsForChart.nequi}
-                    davi={paymentsForChart.davi}
-                  />
-                </div>
-                <div className={styles.donutLabels}>
-                  <div className={styles.donutLabel}>
-                    <div className={styles.donutLabelTitle}>EFEC</div>
-                    <div className={clsx(styles.donutLabelValue, styles.textGreen)}>
-                      ${(paymentsForChart.cash || 0).toLocaleString()}
-                    </div>
-                  </div>
-                  <div className={styles.donutLabel}>
-                    <div className={styles.donutLabelTitle}>NEQUI</div>
-                    <div className={clsx(styles.donutLabelValue, styles.textPink)}>
-                      ${(paymentsForChart.nequi || 0).toLocaleString()}
-                    </div>
-                  </div>
-                  <div className={styles.donutLabel}>
-                    <div className={styles.donutLabelTitle}>DAVI</div>
-                    <div className={clsx(styles.donutLabelValue, styles.textOrange)}>
-                      ${(paymentsForChart.davi || 0).toLocaleString()}
-                    </div>
-                  </div>
-                </div>
+  
+          <div className={styles.areaMission}>
+            {insights ? (
+              <MissionBar percent={insights.goal} meta={insights.meta} />
+            ) : (
+              <div className={clsx(styles.missionBar, "opacity-50 flex items-center justify-center")}>
+                Calculando mision...
               </div>
-            </div>
-
-            <div className={styles.trendCard}>
-              <div className={styles.cardHeader}>Tendencia Semanal</div>
-              <div className="flex-1 flex items-end pb-4 px-2">
-                {weeklyTrend.data.length === 0 ? (
-                  <div className="text-sm text-gray-400">Sin datos historicos</div>
-                ) : (
-                  <WeeklyTrendChart labels={weeklyTrend.labels} data={weeklyTrend.data} />
-                )}
-              </div>
-            </div>
-
-            <div className={styles.hourlyCard}>
-              <HourlyChartCard data={hourly} />
-            </div>
+            )}
           </div>
-
-          <div className={styles.colSide}>
-            <TopProductsList products={topProducts} />
-            <StockAlertsList products={stockAlerts} />
-            <CombosTopList combos={combos} />
+  
+          <div className={styles.columns}>
+            <div className={styles.colMain}>
+              <div className={styles.rowSales}>
+                <SalesTodayCard value={todayTotal} />
+                <div className={styles.donutCard}>
+                  <div className={styles.donutContainer}>
+                    <PaymentDonutChart
+                      cash={paymentsForChart.cash}
+                      nequi={paymentsForChart.nequi}
+                      davi={paymentsForChart.davi}
+                    />
+                  </div>
+                  <div className={styles.donutLabels}>
+                    <div className={styles.donutLabel}>
+                      <div className={styles.donutLabelTitle}>EFEC</div>
+                      <div className={clsx(styles.donutLabelValue, styles.textGreen)}>
+                        ${(paymentsForChart.cash || 0).toLocaleString()}
+                      </div>
+                    </div>
+                    <div className={styles.donutLabel}>
+                      <div className={styles.donutLabelTitle}>NEQUI</div>
+                      <div className={clsx(styles.donutLabelValue, styles.textPink)}>
+                        ${(paymentsForChart.nequi || 0).toLocaleString()}
+                      </div>
+                    </div>
+                    <div className={styles.donutLabel}>
+                      <div className={styles.donutLabelTitle}>DAVI</div>
+                      <div className={clsx(styles.donutLabelValue, styles.textOrange)}>
+                        ${(paymentsForChart.davi || 0).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+  
+              <div className={styles.trendCard}>
+                <div className={styles.cardHeader}>Tendencia Semanal</div>
+                <div className="flex-1 flex items-end pb-4 px-2">
+                  {weeklyTrend.data.length === 0 ? (
+                    <div className="text-sm text-gray-400">Sin datos historicos</div>
+                  ) : (
+                    <WeeklyTrendChart labels={weeklyTrend.labels} data={weeklyTrend.data} />
+                  )}
+                </div>
+              </div>
+  
+              <div className={styles.hourlyCard}>
+                <HourlyChartCard data={hourly} />
+              </div>
+            </div>
+  
+            <div className={styles.colSide}>
+              <TopProductsList products={topProducts} />
+              <StockAlertsList products={stockAlerts} />
+              <CombosTopList combos={combos} />
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  }

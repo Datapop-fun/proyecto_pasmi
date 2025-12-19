@@ -14,6 +14,23 @@ import {
 } from "@/lib/api";
 import { useAuth } from "@/state/auth";
 
+const toLocalYmd = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const pickNumber = (...values: Array<unknown>) => {
+  for (const v of values) {
+    if (v === null || v === undefined) continue;
+    if (typeof v === "string" && v.trim() === "") continue;
+    const n = Number(v);
+    if (Number.isFinite(n)) return n;
+  }
+  return undefined;
+};
+
 export default function AjustesPage() {
   const { showToast } = useUi();
   const { logout } = useAuth();
@@ -32,11 +49,11 @@ export default function AjustesPage() {
   const [loading, setLoading] = useState(true);
 
   const applyFinancials = useCallback(
-    (financialData: any, fallbackBase?: number, fallbackCoffee?: number) => {
+    (financialData: any, fallbackCoffee?: number) => {
       if (!financialData) {
-        if (typeof fallbackBase === "number") setBaseVal(String(fallbackBase));
         if (typeof fallbackCoffee === "number") setCoffeeStock(fallbackCoffee);
         setExpenses([]);
+        setBaseVal("0");
         return;
       }
 
@@ -57,13 +74,14 @@ export default function AjustesPage() {
           : [];
       setExpenses(parsedExpenses);
 
-      const baseFromSheet = financialData?.base;
-      const baseValue =
-        typeof baseFromSheet === "number"
-          ? baseFromSheet
-          : typeof fallbackBase === "number"
-          ? fallbackBase
-          : Number(baseVal) || 0;
+      const baseFromSheet = pickNumber(
+        financialData?.base,
+        financialData?.baseTotal,
+        financialData?.base_total,
+        financialData?.cashBase,
+        financialData?.cajaBase,
+      );
+      const baseValue = Number.isFinite(baseFromSheet as number) ? (baseFromSheet as number) : 0;
       setBaseVal(String(baseValue));
 
       const coffeeFromSheet = financialData?.coffeeStock;
@@ -73,15 +91,16 @@ export default function AjustesPage() {
         setCoffeeStock(fallbackCoffee);
       }
     },
-    [baseVal],
+    [],
   );
 
   const refreshFinancials = useCallback(
-    async (fallbackBase?: number, fallbackCoffee?: number) => {
+    async (fallbackCoffee?: number) => {
       try {
-        const res = await getDailyFinancials();
+        const today = toLocalYmd();
+        const res = await getDailyFinancials(today);
         const financialData = res && "data" in res ? (res as any).data : res;
-        applyFinancials(financialData, fallbackBase, fallbackCoffee);
+        applyFinancials(financialData, fallbackCoffee);
       } catch {
         // Silenciar error en refresco
       }
@@ -96,14 +115,14 @@ export default function AjustesPage() {
 
         const [settingsData, financials] = await Promise.all([
           getSettings().catch(() => ({})),
-          getDailyFinancials().catch(() => null),
+          getDailyFinancials(toLocalYmd()).catch(() => null),
         ]);
 
         const settings = (settingsData || {}) as SettingsData;
         const financialData =
           financials && "data" in financials ? (financials as any).data : financials;
 
-        applyFinancials(financialData, settings.base, settings.coffeeStock);
+        applyFinancials(financialData, settings.coffeeStock);
         setBusinessName(settings.name || "");
         setBusinessNit(settings.nit || "");
         setManualGoal(settings.customGoal || 0);
@@ -130,7 +149,8 @@ export default function AjustesPage() {
         showToast("Ingresa un valor válido");
         return;
       }
-      await setBase({ value: parsedBase });
+      await setBase({ value: parsedBase, date: toLocalYmd() });
+      await refreshFinancials();
       showToast("Base guardada");
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Error guardando base");
@@ -143,7 +163,7 @@ export default function AjustesPage() {
       return;
     }
     try {
-      await addExpense({ desc: expDesc, value: expVal });
+      await addExpense({ desc: expDesc, value: expVal, date: toLocalYmd() });
       showToast("Egreso guardado");
       setExpDesc("");
       setExpVal(0);
